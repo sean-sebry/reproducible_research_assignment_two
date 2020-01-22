@@ -1,0 +1,155 @@
+---
+title: "Reproducible Research Assignment Two"
+author: "Sean Sebry"
+date: "1/21/2020"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+# Look into weather systems and their effects on public health using data analytical methods
+### *For the Johns Hopkins Data Science Certificate offered through Coursera: Reproducible Research*
+
+## Summary
+
+The data from the NOAA Storm Database was imported and processed using (but not limited to) the tidyverse, and data.table packages in R.  A brief EDA showed the data table was in good form for analysis.  There were some necessary steps to process the data to make it tidy and clean.  For example, important categorical variables were factorized.  Finally, the data was visuallzied and assessed in two main categories.  Firstly, a look into harm to humans from these weather systems was performed by looking at which type of events caused the most injuries and fatalities to people.  Secondly, 
+
+## Data Processing
+
+The following describes the data processing performed prior to analysis of the data.
+
+### Packages used for this analysis
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, results = "markup")
+
+```
+
+
+```{r init}
+
+#install.packages("tidyverse")
+#install.packages("data.table")
+#install.packages("R.utils")
+library(tidyverse)
+library(data.table)
+library(R.utils)
+library(lubridate)
+
+```
+
+### Import Raw Data
+
+```{r data_processing_import, cache=TRUE}
+
+raw_storm_data <- fread("repdata_data_StormData.csv.bz2")
+
+```
+
+### EDA and Data Processing
+
+```{r eda_and_data_processing_for_analysis, results='hide'}
+
+str(raw_storm_data)
+head(raw_storm_data)
+
+clean_storm_data <- raw_storm_data %>% 
+  mutate(BGN_DATE = mdy_hms(BGN_DATE)) %>% 
+  mutate(END_DATE = mdy_hms(END_DATE)) %>% 
+  mutate(EVTYPE = as.factor(EVTYPE)) %>% 
+  mutate(STATE = as.factor(STATE)) %>% 
+  glimpse()
+
+summary(clean_storm_data$INJURIES)
+summary(clean_storm_data$FATALITIES)
+unique(clean_storm_data$EVTYPE)
+head(clean_storm_data)
+
+
+```
+Upon reviewing the data, it seemed necessary to convert date and time variables to date and time data types, using Lubridate.  As well, seeing that there were categorical variables, these columns were factorized. The reason for these transform was to simply enhance the data analytic process and not rely on the sorting of generic string data types.
+
+## Results
+
+### Analysis and Results for Harm to Humans due to adverse weahter systems
+
+```{r analysis_1}
+
+harm_table <- clean_storm_data %>% 
+  group_by(EVTYPE) %>% 
+  summarise(FATALITIES = sum(FATALITIES), INJURIES = sum(INJURIES)) %>% 
+  arrange(desc(FATALITIES)) %>% 
+  slice(1:10)%>% 
+  print()
+
+harm_table_lg <- reshape2::melt(harm_table, id = "EVTYPE") %>% 
+  print()
+
+
+harm_visual <- ggplot(harm_table_lg)
+harm_visual + 
+  aes(x = EVTYPE, y = value, fill = variable) + 
+  geom_col() +
+  theme_minimal() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  labs(title = "Top Ten Harm-to-Human Events of All Time", x = "Event Type", y = "Incidents")
+  
+```
+
+As one can see, overwhelmingly tornadoes in the USA contribute to the most injuries and fatalities to human life.
+
+
+```{r analysis_2}
+
+tornado_table <- clean_storm_data %>% 
+  filter(EVTYPE == "TORNADO") %>% 
+  mutate(BGN_DATE = year(BGN_DATE)) %>% 
+  group_by(BGN_DATE) %>% 
+  summarise(FATALITIES = sum(FATALITIES), INJURIES = sum(INJURIES)) %>% 
+  print()
+
+tornado_table_lg <- reshape2::melt(tornado_table, id = "BGN_DATE") %>% 
+  print()
+
+
+tornado_visual <- ggplot(tornado_table_lg)
+tornado_visual + 
+  aes(x = BGN_DATE, y = value) + 
+  geom_smooth(method = "auto") +
+  facet_grid(cols = vars(variable)) +
+  theme_minimal() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  labs(title = "Tornado harm incidents over time", x = "Year", y = "Incidents")
+  
+```
+
+It seems there is no clear trend that incidents from tornados is decreasing over time.  In fact, it would seem incidents of injury are on the rise in recent years, same can be said for fatalities.
+
+```{r analysis_3}
+
+glimpse(clean_storm_data)
+
+econ_conseq_table <- clean_storm_data %>% 
+  group_by(EVTYPE) %>% 
+  summarise(PROPDMG = sum(PROPDMG), CROPDMG = sum(CROPDMG)) %>% 
+  mutate(TOTAL_DMG = PROPDMG + CROPDMG) %>% 
+  arrange(desc(TOTAL_DMG)) %>% 
+  slice(1:10)%>% 
+  print()
+
+econ_conseq_table_lg <- reshape2::melt(econ_conseq_table[,1:3], id = "EVTYPE") %>% 
+  print()
+
+econ_conseq_visual <- ggplot(econ_conseq_table_lg)
+econ_conseq_visual + 
+  aes(x = EVTYPE, y = value, fill = variable) + 
+  geom_col() +
+  theme_minimal() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  labs(title = "Top Ten Economic-Consequence Events of All Time", x = "Event Type", y = "Economic Figure")
+
+```
+
+When analyzing economic consequences, it seems as well, tornados are, again, overwhelmingly responsible for the most adverse economic consequences in the USA.
+
